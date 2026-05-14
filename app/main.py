@@ -12,6 +12,7 @@ from app.runner import compare_prompt_versions, run_evaluation_suite
 from app.prompt_coach import improve_prompt
 from app.tracing import setup_tracing, trace_span
 from app.demo import build_demo_summary
+from fastapi.staticfiles import StaticFiles
 
 
 
@@ -22,7 +23,7 @@ app = FastAPI(
 )
 
 setup_tracing()
-
+app.mount("/ui", StaticFiles(directory="app/static", html=True), name="ui")
 
 class HealthResponse(BaseModel):
     status: str

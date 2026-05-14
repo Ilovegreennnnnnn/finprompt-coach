@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinPrompt Coach</title>
+  <link rel="stylesheet" href="/ui/styles.css" />
+</head>
+<body>
+  <main class="container">
+    <section class="hero">
+      <p class="eyebrow">Arize-powered prompt optimization</p>
+      <h1>FinPrompt Coach</h1>
+      <p class="subtitle">
+        Test, observe, evaluate, and improve prompts for financial research agents.
+      </p>
+      <p class="disclaimer">
+        For prompt evaluation only. Not financial advice.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>1. Prompt Lab</h2>
+      <p class="muted">Start with a weak financial agent prompt.</p>
+
+      <textarea id="promptInput">You are a helpful finance assistant. Answer clearly.</textarea>
+
+      <button id="runButton">Run prompt experiment</button>
+    </section>
+
+    <section id="loading" class="card hidden">
+      <h2>Running experiment...</h2>
+      <p class="muted">
+        Running v1, tracing with Phoenix, evaluating failures, generating prompt v2, and comparing results.
+      </p>
+    </section>
+
+    <section id="results" class="hidden">
+      <div class="grid">
+        <div class="score-card">
+          <p class="label">Prompt v1 score</p>
+          <h3 id="v1Score">—</h3>
+          <p id="v1Cases" class="muted">—</p>
+        </div>
+
+        <div class="score-card success">
+          <p class="label">Prompt v2 score</p>
+          <h3 id="v2Score">—</h3>
+          <p id="v2Cases" class="muted">—</p>
+        </div>
+
+        <div class="score-card">
+          <p class="label">Improvement</p>
+          <h3 id="improvement">—</h3>
+          <p class="muted">Measured on the synthetic regression suite.</p>
+        </div>
+      </div>
+
+      <section class="card">
+        <h2>2. Failure Analysis</h2>
+        <div id="failureAnalysis" class="list"></div>
+      </section>
+
+      <section class="card">
+        <h2>3. Prompt Patch</h2>
+        <div id="promptPatch" class="list"></div>
+      </section>
+
+      <section class="comparison">
+        <div class="card">
+          <h2>4. Sample v1 Failure</h2>
+          <p id="failureTitle" class="muted"></p>
+          <pre id="failureResponse"></pre>
+        </div>
+
+        <div class="card">
+          <h2>5. Improved v2 Response</h2>
+          <p id="improvedTitle" class="muted"></p>
+          <pre id="improvedResponse"></pre>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>6. Improved Prompt</h2>
+        <pre id="improvedPrompt"></pre>
+      </section>
+
+      <section class="card final">
+        <h2>Demo message</h2>
+        <p id="demoMessage"></p>
+      </section>
+    </section>
+  </main>
+
+  <script src="/ui/app.js"></script>
+</body>
+</html>
