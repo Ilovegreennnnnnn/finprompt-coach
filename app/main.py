@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from app.dataset import get_case_by_id, load_cases
 
 from app.tools import run_tool
+from app.evaluators import evaluate_response
 
 
 app = FastAPI(
@@ -19,6 +20,10 @@ class HealthResponse(BaseModel):
     status: str
     project: str
     purpose: str
+
+class EvaluationRequest(BaseModel):
+    response_text: str
+    tool_used: str | None = None
 
 
 @app.get("/", response_model=HealthResponse)
@@ -62,4 +67,17 @@ def test_tool(tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
     return run_tool(
         tool_name=tool_name,
         provided_context=provided_context,
+    )
+
+@app.post("/evaluate/{case_id}")
+def evaluate_case(case_id: str, payload: EvaluationRequest) -> dict[str, Any]:
+    case = get_case_by_id(case_id)
+
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"Case not found: {case_id}")
+
+    return evaluate_response(
+        case=case,
+        response_text=payload.response_text,
+        tool_used=payload.tool_used,
     )
