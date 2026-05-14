@@ -13,6 +13,7 @@ from app.prompt_coach import improve_prompt
 from app.tracing import setup_tracing, trace_span
 from app.demo import build_demo_summary
 from fastapi.staticfiles import StaticFiles
+from app.gemini_client import generate_gemini_text
 
 
 
@@ -36,6 +37,9 @@ class EvaluationRequest(BaseModel):
 
 class RunCaseRequest(BaseModel):
     prompt: str | None = None
+
+class GeminiTestRequest(BaseModel):
+    prompt: str
 
 
 @app.get("/", response_model=HealthResponse)
@@ -261,3 +265,21 @@ def demo_summary(payload: RunCaseRequest) -> dict[str, Any]:
             coach_result=coach_result,
             experiment_result=experiment_result,
         )
+
+@app.post("/gemini-test")
+def gemini_test(payload: GeminiTestRequest) -> dict[str, Any]:
+    with trace_span(
+        "gemini.test",
+        {
+            "project.name": "finprompt-coach",
+            "auth.method": "application_default_credentials",
+        },
+    ):
+        response_text = generate_gemini_text(payload.prompt)
+
+        return {
+            "provider": "google",
+            "platform": "vertex_ai",
+            "auth": "application_default_credentials",
+            "response_text": response_text,
+        }
