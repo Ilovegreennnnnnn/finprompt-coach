@@ -5,6 +5,8 @@ from pydantic import BaseModel
 
 from app.dataset import get_case_by_id, load_cases
 
+from app.tools import run_tool
+
 
 app = FastAPI(
     title="FinPrompt Coach API",
@@ -51,3 +53,13 @@ def read_case(case_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"Case not found: {case_id}")
 
     return case
+
+
+@app.post("/tools/{tool_name}")
+def test_tool(tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+    provided_context = payload.get("provided_context", {})
+
+    return run_tool(
+        tool_name=tool_name,
+        provided_context=provided_context,
+    )
