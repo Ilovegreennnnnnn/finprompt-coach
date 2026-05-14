@@ -9,7 +9,7 @@ from app.tools import run_tool
 from app.evaluators import evaluate_response
 from app.agent import run_weak_agent
 from app.runner import run_evaluation_suite
-
+from app.prompt_coach import improve_prompt
 
 app = FastAPI(
     title="FinPrompt Coach API",
@@ -128,4 +128,25 @@ def run_suite(payload: RunCaseRequest) -> dict[str, Any]:
         "agent_version": "weak_simulated_v1",
         "prompt": payload.prompt,
         "suite_result": suite_result,
+    }
+
+
+@app.post("/improve-prompt")
+def improve_prompt_endpoint(payload: RunCaseRequest) -> dict[str, Any]:
+    cases = load_cases()
+
+    suite_result = run_evaluation_suite(
+        cases=cases,
+        prompt=payload.prompt,
+    )
+
+    coach_result = improve_prompt(
+        original_prompt=payload.prompt,
+        suite_result=suite_result,
+    )
+
+    return {
+        "agent_version": "weak_simulated_v1",
+        "suite_result": suite_result,
+        "coach_result": coach_result,
     }
