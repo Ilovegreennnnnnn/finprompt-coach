@@ -11,6 +11,7 @@ from app.agent import run_weak_agent
 from app.runner import compare_prompt_versions, run_evaluation_suite
 from app.prompt_coach import improve_prompt
 from app.tracing import setup_tracing, trace_span
+from app.demo import build_demo_summary
 
 
 
@@ -220,3 +221,42 @@ def run_experiment(payload: RunCaseRequest) -> dict[str, Any]:
             "coach_result": coach_result,
             "experiment_result": experiment_result,
         }
+
+@app.post("/demo-summary")
+def demo_summary(payload: RunCaseRequest) -> dict[str, Any]:
+    with trace_span(
+        "demo.summary",
+        {
+            "project.name": "finprompt-coach",
+            "demo.type": "compact_summary",
+        },
+    ):
+        cases = load_cases()
+
+        prompt_v1 = payload.prompt or "You are a helpful finance assistant. Answer clearly."
+
+        v1_suite_result = run_evaluation_suite(
+            cases=cases,
+            prompt=prompt_v1,
+            agent_version="weak",
+        )
+
+        coach_result = improve_prompt(
+            original_prompt=prompt_v1,
+            suite_result=v1_suite_result,
+        )
+
+        prompt_v2 = coach_result["improved_prompt"]
+
+        experiment_result = compare_prompt_versions(
+            cases=cases,
+            prompt_v1=prompt_v1,
+            prompt_v2=prompt_v2,
+        )
+
+        return build_demo_summary(
+            prompt_v1=prompt_v1,
+            prompt_v2=prompt_v2,
+            coach_result=coach_result,
+            experiment_result=experiment_result,
+        )
