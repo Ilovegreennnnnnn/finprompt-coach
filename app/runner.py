@@ -2,6 +2,7 @@ from typing import Any
 
 from app.agent import run_improved_agent, run_weak_agent
 from app.evaluators import evaluate_response
+from app.tracing import trace_span
 
 
 def run_evaluation_suite(
@@ -12,35 +13,106 @@ def run_evaluation_suite(
     """
     Runs an agent on every case and evaluates each response.
     """
-    results = []
+    with trace_span(
+        "suite.run",
+        {
+            "agent.version": agent_version,
+            "dataset.size": len(cases),
+        },
+    ):
+        results = []
 
-    for case in cases:
-        if agent_version == "improved":
-            agent_run = run_improved_agent(
-                case=case,
-                prompt=prompt,
-            )
+        for case in cases:
+            case_id = case.get("id")
+            title = case.get("title")
+
+            with trace_span(
+                "case.run",
+                {
+                    "case.id": case_id,
+                    "case.title": title,
+                    "agent.version": agent_version,
+                    "expected.tool": case.get("expected_tool"),
+                    "expected.behavior": case.get("expected_behavior"),
+                },
+            ):
+                if agent_version == "improved":
+                    agent_run = run_improved_agent(
+                        case=case,
+                        prompt=prompt,
+                    )
+                else:
+                    agent_run = run_weak_agent(
+                        case=case,
+                        prompt=prompt,
+                    )
+
+                with trace_span(
+                    "case.evaluate",
+                    {
+                        "case.id": case_id,
+                        "tool.used": agent_run["tool_used"],
+                        "agent.version": agent_version,
+                    },
+                ) as span:
+                    evaluation = evaluate_response(
+                        case=case,
+                        response_text=agent_run["response_text"],
+                        tool_used=agent_run["tool_used"],
+                    )
+
+                    span.set_attribute(
+                        "evaluation.overall_score",
+                        evaluation["overall_score"],
+                    )
+                    span.set_attribute(
+                        "evaluation.passed",
+                        evaluation["passed"],
+                    )
+
+                    for item in evaluation["evaluations"]:
+                        evaluator_name = item["name"]
+                        span.set_attribute(
+                            f"evaluation.{evaluator_name}.score",
+                            item["score"],
+                        )
+                        span.set_attribute(
+                            f"evaluation.{evaluator_name}.passed",
+                            item["passed"],
+                        )
+
+                results.append(
+                    {
+                        "case_id": case_id,
+                        "title": title,
+                        "agent_run": agent_run,
+                        "evaluation": evaluation,
+                    }
+                )
+
+        total_cases = len(results)
+        passed_cases = sum(1 for result in results if result["evaluation"]["passed"])
+        failed_cases = total_cases - passed_cases
+
+        if total_cases == 0:
+            overall_score = 0.0
         else:
-            agent_run = run_weak_agent(
-                case=case,
-                prompt=prompt,
-            )
+            overall_score = sum(
+                result["evaluation"]["overall_score"] for result in results
+            ) / total_cases
 
-        evaluation = evaluate_response(
-            case=case,
-            response_text=agent_run["response_text"],
-            tool_used=agent_run["tool_used"],
-        )
+        suite_result = {
+            "agent_version": agent_version,
+            "total_cases": total_cases,
+            "passed_cases": passed_cases,
+            "failed_cases": failed_cases,
+            "overall_score": round(overall_score, 2),
+            "results": results,
+        }
 
-        results.append(
-            {
-                "case_id": case.get("id"),
-                "title": case.get("title"),
-                "agent_run": agent_run,
-                "evaluation": evaluation,
-            }
-        )
+        current_span = trace_span
 
+        return suite_result
     total_cases = len(results)
     passed_cases = sum(1 for result in results if result["evaluation"]["passed"])
     failed_cases = total_cases - passed_cases

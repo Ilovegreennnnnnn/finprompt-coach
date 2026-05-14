@@ -1,6 +1,7 @@
 from typing import Any
 from app.prompt_coach import BASE_IMPROVED_PROMPT
 from app.tools import run_tool
+from app.tracing import trace_span
 
 
 DEFAULT_WEAK_PROMPT = "You are a helpful finance assistant. Answer clearly."
@@ -104,10 +105,18 @@ def run_weak_agent(
     selected_prompt = prompt or DEFAULT_WEAK_PROMPT
     tool_name = choose_tool_naively(case)
 
-    tool_output = run_tool(
-        tool_name=tool_name,
-        provided_context=case.get("provided_context", {}),
-    )
+    with trace_span(
+        "tool.call",
+        {
+            "tool.name": tool_name,
+            "agent.version": "weak",
+            "case.id": case.get("id"),
+        },
+    ):
+        tool_output = run_tool(
+            tool_name=tool_name,
+            provided_context=case.get("provided_context", {}),
+        )
 
     response_text = generate_weak_response(
         case=case,
@@ -319,10 +328,18 @@ def run_improved_agent(
     selected_prompt = prompt or BASE_IMPROVED_PROMPT
     tool_name = choose_tool_with_policy(case)
 
-    tool_output = run_tool(
-        tool_name=tool_name,
-        provided_context=case.get("provided_context", {}),
-    )
+    with trace_span(
+        "tool.call",
+        {
+            "tool.name": tool_name,
+            "agent.version": "improved",
+            "case.id": case.get("id"),
+        },
+    ):
+        tool_output = run_tool(
+            tool_name=tool_name,
+            provided_context=case.get("provided_context", {}),
+        )
 
     response_text = generate_improved_response(
         case=case,

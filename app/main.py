@@ -10,6 +10,7 @@ from app.evaluators import evaluate_response
 from app.agent import run_weak_agent
 from app.runner import compare_prompt_versions, run_evaluation_suite
 from app.prompt_coach import improve_prompt
+from app.tracing import setup_tracing, trace_span
 
 
 
@@ -18,6 +19,8 @@ app = FastAPI(
     description="Arize-powered prompt optimization backend for financial agents.",
     version="0.1.0",
 )
+
+setup_tracing()
 
 
 class HealthResponse(BaseModel):
@@ -156,32 +159,64 @@ def improve_prompt_endpoint(payload: RunCaseRequest) -> dict[str, Any]:
 
 @app.post("/experiment")
 def run_experiment(payload: RunCaseRequest) -> dict[str, Any]:
-    cases = load_cases()
+    with trace_span(
+        "experiment.prompt_v1_vs_prompt_v2",
+        {
+            "experiment.name": "prompt_v1_vs_prompt_v2",
+            "project.name": "finprompt-coach",
+        },
+    ):
+        cases = load_cases()
 
-    prompt_v1 = payload.prompt or "You are a helpful finance assistant. Answer clearly."
+        prompt_v1 = payload.prompt or "You are a helpful finance assistant. Answer clearly."
 
-    v1_suite_result = run_evaluation_suite(
-        cases=cases,
-        prompt=prompt_v1,
-        agent_version="weak",
-    )
+        with trace_span(
+            "experiment.run_v1_suite",
+            {
+                "agent.version": "weak",
+                "prompt.version": "v1",
+                "dataset.size": len(cases),
+            },
+        ):
+            v1_suite_result = run_evaluation_suite(
+                cases=cases,
+                prompt=prompt_v1,
+                agent_version="weak",
+            )
 
-    coach_result = improve_prompt(
-        original_prompt=prompt_v1,
-        suite_result=v1_suite_result,
-    )
+        with trace_span(
+            "experiment.prompt_coach",
+            {
+                "prompt.version.input": "v1",
+                "prompt.version.output": "v2",
+                "v1.overall_score": v1_suite_result["overall_score"],
+                "v1.passed_cases": v1_suite_result["passed_cases"],
+                "v1.failed_cases": v1_suite_result["failed_cases"],
+            },
+        ):
+            coach_result = improve_prompt(
+                original_prompt=prompt_v1,
+                suite_result=v1_suite_result,
+            )
 
-    prompt_v2 = coach_result["improved_prompt"]
+        prompt_v2 = coach_result["improved_prompt"]
 
-    experiment_result = compare_prompt_versions(
-        cases=cases,
-        prompt_v1=prompt_v1,
-        prompt_v2=prompt_v2,
-    )
+        with trace_span(
+            "experiment.compare_v1_v2",
+            {
+                "prompt.version.a": "v1",
+                "prompt.version.b": "v2",
+            },
+        ):
+            experiment_result = compare_prompt_versions(
+                cases=cases,
+                prompt_v1=prompt_v1,
+                prompt_v2=prompt_v2,
+            )
 
-    return {
-        "prompt_v1": prompt_v1,
-        "prompt_v2": prompt_v2,
-        "coach_result": coach_result,
-        "experiment_result": experiment_result,
-    }
+        return {
+            "prompt_v1": prompt_v1,
+            "prompt_v2": prompt_v2,
+            "coach_result": coach_result,
+            "experiment_result": experiment_result,
+        }
