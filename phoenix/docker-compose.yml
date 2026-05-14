@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: phoenix
+    restart: always
+    ports:
+      - "6006:6006"
+    volumes:
+      - phoenix_data:/root/.phoenix
+    environment:
+      - PHOENIX_HOST=0.0.0.0
+      - PHOENIX_PORT=6006
+
+volumes:
+  phoenix_data:
