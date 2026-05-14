@@ -7,13 +7,14 @@ from app.dataset import get_case_by_id, load_cases
 
 from app.tools import run_tool
 from app.evaluators import evaluate_response
-from app.agent import run_weak_agent
+from app.agent import run_gemini_agent, run_weak_agent
 from app.runner import compare_prompt_versions, run_evaluation_suite
 from app.prompt_coach import improve_prompt
 from app.tracing import setup_tracing, trace_span
 from app.demo import build_demo_summary
 from fastapi.staticfiles import StaticFiles
 from app.gemini_client import generate_gemini_text
+
 
 
 
@@ -282,4 +283,37 @@ def gemini_test(payload: GeminiTestRequest) -> dict[str, Any]:
             "platform": "vertex_ai",
             "auth": "application_default_credentials",
             "response_text": response_text,
+        }
+
+@app.post("/run-gemini-case/{case_id}")
+def run_gemini_case(case_id: str, payload: RunCaseRequest) -> dict[str, Any]:
+    with trace_span(
+        "case.gemini.run_and_evaluate",
+        {
+            "case.id": case_id,
+            "agent.version": "gemini",
+        },
+    ):
+        case = get_case_by_id(case_id)
+
+        if case is None:
+            raise HTTPException(status_code=404, detail=f"Case not found: {case_id}")
+
+        agent_run = run_gemini_agent(
+            case=case,
+            prompt=payload.prompt,
+        )
+
+        evaluation = evaluate_response(
+            case=case,
+            response_text=agent_run["response_text"],
+            tool_used=agent_run["tool_used"],
+        )
+
+        return {
+            "case_id": case_id,
+            "agent_version": "gemini",
+            "case": case,
+            "agent_run": agent_run,
+            "evaluation": evaluation,
         }

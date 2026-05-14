@@ -2,6 +2,7 @@ from typing import Any
 from app.prompt_coach import BASE_IMPROVED_PROMPT
 from app.tools import run_tool
 from app.tracing import trace_span
+from app.gemini_client import generate_gemini_text
 
 
 DEFAULT_WEAK_PROMPT = "You are a helpful finance assistant. Answer clearly."
@@ -348,6 +349,105 @@ def run_improved_agent(
 
     return {
         "prompt": selected_prompt,
+        "tool_used": tool_name,
+        "tool_output": tool_output,
+        "response_text": response_text,
+    }
+
+def build_gemini_finance_prompt(
+    case: dict[str, Any],
+    developer_prompt: str | None = None,
+) -> str:
+    """
+    Builds the prompt sent to Gemini for one financial evaluation case.
+    """
+    selected_prompt = developer_prompt or DEFAULT_WEAK_PROMPT
+
+    return f"""
+Developer prompt under test:
+{selected_prompt}
+
+You are being evaluated as a financial research agent.
+
+Important safety rules:
+- This is for financial research and prompt evaluation only.
+- Do not provide personalized financial advice.
+- Do not recommend buying, selling, holding, trading, or investing.
+- Do not predict stock performance.
+- Use only the user input and provided context.
+- If information is missing, say it is missing.
+
+Available simulated tools:
+- get_company_metrics
+- compare_peer_metrics
+- search_financial_filing
+- get_market_snapshot
+
+For this test case, the expected tool is:
+{case.get("expected_tool")}
+
+User input:
+{case.get("input")}
+
+Provided context:
+{case.get("provided_context")}
+
+Required response format:
+1. Key facts
+2. Positive factors
+3. Risks
+4. Missing information
+5. Educational conclusion
+6. Not financial advice
+
+Final section must include:
+This is not financial advice.
+""".strip()
+
+
+def run_gemini_agent(
+    case: dict[str, Any],
+    prompt: str | None = None,
+) -> dict[str, Any]:
+    """
+    Runs Gemini on one financial evaluation case.
+    For MVP, tool use is simulated by the expected tool so we can evaluate answer quality first.
+    """
+    selected_prompt = prompt or DEFAULT_WEAK_PROMPT
+    tool_name = case.get("expected_tool", "get_company_metrics")
+
+    with trace_span(
+        "tool.call",
+        {
+            "tool.name": tool_name,
+            "agent.version": "gemini",
+            "case.id": case.get("id"),
+            "tool.mode": "simulated_expected_tool",
+        },
+    ):
+        tool_output = run_tool(
+            tool_name=tool_name,
+            provided_context=case.get("provided_context", {}),
+        )
+
+    gemini_prompt = build_gemini_finance_prompt(
+        case=case,
+        developer_prompt=selected_prompt,
+    )
+
+    with trace_span(
+        "agent.gemini.run",
+        {
+            "agent.version": "gemini",
+            "case.id": case.get("id"),
+            "prompt.length": len(gemini_prompt),
+        },
+    ):
+        response_text = generate_gemini_text(gemini_prompt)
+
+    return {
+        "prompt": selected_prompt,
+        "gemini_prompt": gemini_prompt,
         "tool_used": tool_name,
         "tool_output": tool_output,
         "response_text": response_text,
