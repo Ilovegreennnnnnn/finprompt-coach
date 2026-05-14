@@ -7,6 +7,7 @@ from app.dataset import get_case_by_id, load_cases
 
 from app.tools import run_tool
 from app.evaluators import evaluate_response
+from app.agent import run_weak_agent
 
 
 app = FastAPI(
@@ -24,6 +25,9 @@ class HealthResponse(BaseModel):
 class EvaluationRequest(BaseModel):
     response_text: str
     tool_used: str | None = None
+
+class RunCaseRequest(BaseModel):
+    prompt: str | None = None
 
 
 @app.get("/", response_model=HealthResponse)
@@ -81,3 +85,30 @@ def evaluate_case(case_id: str, payload: EvaluationRequest) -> dict[str, Any]:
         response_text=payload.response_text,
         tool_used=payload.tool_used,
     )
+
+
+@app.post("/run-case/{case_id}")
+def run_case(case_id: str, payload: RunCaseRequest) -> dict[str, Any]:
+    case = get_case_by_id(case_id)
+
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"Case not found: {case_id}")
+
+    agent_run = run_weak_agent(
+        case=case,
+        prompt=payload.prompt,
+    )
+
+    evaluation = evaluate_response(
+        case=case,
+        response_text=agent_run["response_text"],
+        tool_used=agent_run["tool_used"],
+    )
+
+    return {
+        "case_id": case_id,
+        "agent_version": "weak_simulated_v1",
+        "case": case,
+        "agent_run": agent_run,
+        "evaluation": evaluation,
+    }
