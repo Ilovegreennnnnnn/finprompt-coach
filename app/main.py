@@ -1,5 +1,10 @@
-from fastapi import FastAPI
+from typing import Any
+
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+
+from app.dataset import get_case_by_id, load_cases
+
 
 app = FastAPI(
     title="FinPrompt Coach API",
@@ -26,3 +31,23 @@ def health_check():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/cases")
+def list_cases() -> dict[str, Any]:
+    cases = load_cases()
+
+    return {
+        "count": len(cases),
+        "cases": cases,
+    }
+
+
+@app.get("/cases/{case_id}")
+def read_case(case_id: str) -> dict[str, Any]:
+    case = get_case_by_id(case_id)
+
+    if case is None:
+        raise HTTPException(status_code=404, detail=f"Case not found: {case_id}")
+
+    return case
