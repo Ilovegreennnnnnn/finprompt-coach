@@ -2,7 +2,7 @@ from typing import Any
 
 from opentelemetry import trace
 
-from app.agent import run_improved_agent, run_weak_agent
+from app.agent import run_gemini_agent, run_improved_agent, run_weak_agent
 from app.evaluators import evaluate_response
 from app.tracing import trace_span
 
@@ -39,7 +39,12 @@ def run_evaluation_suite(
                     "expected.behavior": case.get("expected_behavior"),
                 },
             ):
-                if agent_version == "improved":
+                if agent_version == "gemini":
+                    agent_run = run_gemini_agent(
+                        case=case,
+                        prompt=prompt,
+                    )
+                elif agent_version == "improved":
                     agent_run = run_improved_agent(
                         case=case,
                         prompt=prompt,

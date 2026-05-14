@@ -317,3 +317,27 @@ def run_gemini_case(case_id: str, payload: RunCaseRequest) -> dict[str, Any]:
             "agent_run": agent_run,
             "evaluation": evaluation,
         }
+
+
+@app.post("/run-gemini-suite")
+def run_gemini_suite(payload: RunCaseRequest) -> dict[str, Any]:
+    with trace_span(
+        "suite.gemini.run_and_evaluate",
+        {
+            "agent.version": "gemini",
+            "project.name": "finprompt-coach",
+        },
+    ):
+        cases = load_cases()
+
+        suite_result = run_evaluation_suite(
+            cases=cases,
+            prompt=payload.prompt,
+            agent_version="gemini",
+        )
+
+        return {
+            "agent_version": "gemini",
+            "prompt": payload.prompt,
+            "suite_result": suite_result,
+        }
