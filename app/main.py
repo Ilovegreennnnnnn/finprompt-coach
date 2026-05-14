@@ -8,7 +8,11 @@ from app.dataset import get_case_by_id, load_cases
 from app.tools import run_tool
 from app.evaluators import evaluate_response
 from app.agent import run_gemini_agent, run_weak_agent
-from app.runner import compare_prompt_versions, run_evaluation_suite
+from app.runner import (
+    compare_gemini_prompt_versions,
+    compare_prompt_versions,
+    run_evaluation_suite,
+)
 from app.prompt_coach import improve_prompt
 from app.tracing import setup_tracing, trace_span
 from app.demo import build_demo_summary
@@ -42,6 +46,8 @@ class RunCaseRequest(BaseModel):
 class GeminiTestRequest(BaseModel):
     prompt: str
 
+class PromptRequest(BaseModel):
+    prompt: str
 
 @app.get("/", response_model=HealthResponse)
 def health_check():
@@ -340,4 +346,81 @@ def run_gemini_suite(payload: RunCaseRequest) -> dict[str, Any]:
             "agent_version": "gemini",
             "prompt": payload.prompt,
             "suite_result": suite_result,
+        }
+def summarize_suite(result: dict) -> dict:
+    return {
+        "agent_version": result.get("agent_version"),
+        "total_cases": result.get("total_cases"),
+        "passed_cases": result.get("passed_cases"),
+        "failed_cases": result.get("failed_cases"),
+        "overall_score": result.get("overall_score"),
+        "failed_case_summaries": [
+            {
+                "case_id": item.get("case_id"),
+                "title": item.get("title"),
+                "overall_score": item.get("evaluation", {}).get("overall_score"),
+                "failed_evaluators": [
+                    evaluator.get("name")
+                    for evaluator in item.get("evaluation", {}).get("evaluations", [])
+                    if not evaluator.get("passed")
+                ],
+            }
+            for item in result.get("results", [])
+            if not item.get("evaluation", {}).get("passed")
+        ],
+    }
+
+
+@app.post("/gemini-experiment")
+def run_gemini_experiment(payload: PromptRequest) -> dict[str, Any]:
+    with trace_span(
+        "experiment.gemini_prompt_v1_vs_prompt_v2",
+        {
+            "experiment.name": "gemini_prompt_v1_vs_prompt_v2",
+            "project.name": "finprompt-coach",
+            "agent.version": "gemini",
+        },
+    ):
+        cases = load_cases()
+
+        prompt_v1 = payload.prompt or "You are a helpful finance assistant. Answer clearly."
+
+        v1_suite_result = run_evaluation_suite(
+            cases=cases,
+            prompt=prompt_v1,
+            agent_version="gemini",
+        )
+
+        coach_result = improve_prompt(
+            original_prompt=prompt_v1,
+            suite_result=v1_suite_result,
+        )
+
+        prompt_v2 = coach_result["improved_prompt"]
+
+        v2_suite_result = run_evaluation_suite(
+            cases=cases,
+            prompt=prompt_v2,
+            agent_version="gemini",
+        )
+
+        experiment_result = {
+            "experiment_name": "gemini_prompt_v1_vs_prompt_v2",
+            "agent_version": "gemini",
+            "prompt_v1_score": v1_suite_result["overall_score"],
+            "prompt_v2_score": v2_suite_result["overall_score"],
+            "improvement": round(
+                v2_suite_result["overall_score"] - v1_suite_result["overall_score"],
+                2,
+            ),
+            "v1_summary": summarize_suite(v1_suite_result),
+            "v2_summary": summarize_suite(v2_suite_result),
+        }
+
+        return {
+            "agent_version": "gemini",
+            "v1_summary": summarize_suite(v1_suite_result),
+            "v2_summary": summarize_suite(v2_suite_result),
+            "coach_result": coach_result,
+            "experiment_result": experiment_result,
         }

@@ -200,3 +200,73 @@ def compare_prompt_versions(
         )
 
         return comparison_result
+
+
+def compare_gemini_prompt_versions(
+    cases: list[dict[str, Any]],
+    prompt_v1: str,
+    prompt_v2: str,
+) -> dict[str, Any]:
+    """
+    Runs a Gemini experiment comparing prompt v1 against prompt v2.
+    Both versions use the real Gemini agent path.
+    """
+    with trace_span(
+        "experiment.gemini_compare_prompt_versions",
+        {
+            "experiment.name": "gemini_prompt_v1_vs_prompt_v2",
+            "agent.version": "gemini",
+            "prompt.v1.length": len(prompt_v1),
+            "prompt.v2.length": len(prompt_v2),
+        },
+    ):
+        v1_result = run_evaluation_suite(
+            cases=cases,
+            prompt=prompt_v1,
+            agent_version="gemini",
+        )
+
+        v2_result = run_evaluation_suite(
+            cases=cases,
+            prompt=prompt_v2,
+            agent_version="gemini",
+        )
+
+        improvement = round(
+            v2_result["overall_score"] - v1_result["overall_score"],
+            2,
+        )
+
+        comparison_result = {
+            "experiment_name": "gemini_prompt_v1_vs_prompt_v2",
+            "agent_version": "gemini",
+            "prompt_v1_score": v1_result["overall_score"],
+            "prompt_v2_score": v2_result["overall_score"],
+            "improvement": improvement,
+            "v1_result": v1_result,
+            "v2_result": v2_result,
+        }
+
+        current_span = trace.get_current_span()
+        current_span.set_attribute(
+            "experiment.prompt_v1_score",
+            comparison_result["prompt_v1_score"],
+        )
+        current_span.set_attribute(
+            "experiment.prompt_v2_score",
+            comparison_result["prompt_v2_score"],
+        )
+        current_span.set_attribute(
+            "experiment.improvement",
+            comparison_result["improvement"],
+        )
+        current_span.set_attribute(
+            "experiment.v1_passed_cases",
+            v1_result["passed_cases"],
+        )
+        current_span.set_attribute(
+            "experiment.v2_passed_cases",
+            v2_result["passed_cases"],
+        )
+
+        return comparison_result

@@ -1,97 +1,256 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8" />
   <title>FinPrompt Coach</title>
-  <link rel="stylesheet" href="/ui/styles.css" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1100px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background: #f7f7f8;
+      color: #111827;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 90px;
+      padding: 12px;
+      font-size: 15px;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+    }
+
+    button {
+      margin-top: 12px;
+      padding: 12px 18px;
+      border: none;
+      border-radius: 8px;
+      background: #111827;
+      color: white;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .card {
+      background: white;
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .label {
+      color: #6b7280;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .value {
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    .section {
+      background: white;
+      margin-top: 24px;
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f3f4f6;
+    }
+
+    .good {
+      color: #047857;
+      font-weight: bold;
+    }
+
+    .bad {
+      color: #b91c1c;
+      font-weight: bold;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      border-radius: 8px;
+      max-height: 260px;
+      overflow: auto;
+    }
+  </style>
 </head>
 <body>
-  <main class="container">
-    <section class="hero">
-      <p class="eyebrow">Arize-powered prompt optimization</p>
-      <h1>FinPrompt Coach</h1>
-      <p class="subtitle">
-        Test, observe, evaluate, and improve prompts for financial research agents.
-      </p>
-      <p class="disclaimer">
-        For prompt evaluation only. Not financial advice.
-      </p>
-    </section>
+  <h1>FinPrompt Coach</h1>
+  <p>Compare un prompt finance faible avec une version améliorée par le coach.</p>
 
-    <section class="card">
-      <h2>1. Prompt Lab</h2>
-      <p class="muted">Start with a weak financial agent prompt.</p>
+  <textarea id="prompt">You are a helpful finance assistant. Answer clearly.</textarea>
+  <br />
+  <button id="runBtn" onclick="runExperiment()">Run Gemini Experiment</button>
 
-      <textarea id="promptInput">You are a helpful finance assistant. Answer clearly.</textarea>
+  <div id="results"></div>
 
-      <button id="runButton">Run prompt experiment</button>
-    </section>
+  <script>
+    async function runExperiment() {
+      const button = document.getElementById("runBtn");
+      const results = document.getElementById("results");
+      const prompt = document.getElementById("prompt").value;
 
-    <section id="loading" class="card hidden">
-      <h2>Running experiment...</h2>
-      <p class="muted">
-        Running v1, tracing with Phoenix, evaluating failures, generating prompt v2, and comparing results.
-      </p>
-    </section>
+      button.disabled = true;
+      button.textContent = "Running...";
+      results.innerHTML = "<p>Experiment running...</p>";
 
-    <section id="results" class="hidden">
-      <div class="grid">
-        <div class="score-card">
-          <p class="label">Prompt v1 score</p>
-          <h3 id="v1Score">—</h3>
-          <p id="v1Cases" class="muted">—</p>
+      try {
+        const response = await fetch("/gemini-experiment", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ prompt })
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || "Request failed");
+        }
+
+        const data = await response.json();
+        renderResults(data);
+      } catch (error) {
+        results.innerHTML = `
+          <div class="section">
+            <h2>Error</h2>
+            <pre>${error.message}</pre>
+          </div>
+        `;
+      } finally {
+        button.disabled = false;
+        button.textContent = "Run Gemini Experiment";
+      }
+    }
+
+    function renderResults(data) {
+      const experiment = data.experiment_result;
+      const v1 = experiment.v1_summary;
+      const v2 = experiment.v2_summary;
+
+      document.getElementById("results").innerHTML = `
+        <div class="cards">
+          <div class="card">
+            <div class="label">Prompt v1 score</div>
+            <div class="value bad">${experiment.prompt_v1_score}</div>
+          </div>
+
+          <div class="card">
+            <div class="label">Prompt v2 score</div>
+            <div class="value good">${experiment.prompt_v2_score}</div>
+          </div>
+
+          <div class="card">
+            <div class="label">Improvement</div>
+            <div class="value good">+${experiment.improvement}</div>
+          </div>
+
+          <div class="card">
+            <div class="label">v2 passed cases</div>
+            <div class="value good">${v2.passed_cases}/${v2.total_cases}</div>
+          </div>
         </div>
 
-        <div class="score-card success">
-          <p class="label">Prompt v2 score</p>
-          <h3 id="v2Score">—</h3>
-          <p id="v2Cases" class="muted">—</p>
+        <div class="section">
+          <h2>Summary</h2>
+          <p>
+            Gemini prompt v1 failed <strong>${v1.failed_cases}</strong> out of
+            <strong>${v1.total_cases}</strong> cases.
+            The optimized prompt v2 passed <strong>${v2.passed_cases}</strong>
+            out of <strong>${v2.total_cases}</strong> cases.
+          </p>
         </div>
 
-        <div class="score-card">
-          <p class="label">Improvement</p>
-          <h3 id="improvement">—</h3>
-          <p class="muted">Measured on the synthetic regression suite.</p>
-        </div>
-      </div>
-
-      <section class="card">
-        <h2>2. Failure Analysis</h2>
-        <div id="failureAnalysis" class="list"></div>
-      </section>
-
-      <section class="card">
-        <h2>3. Prompt Patch</h2>
-        <div id="promptPatch" class="list"></div>
-      </section>
-
-      <section class="comparison">
-        <div class="card">
-          <h2>4. Sample v1 Failure</h2>
-          <p id="failureTitle" class="muted"></p>
-          <pre id="failureResponse"></pre>
+        <div class="section">
+          <h2>Prompt Coach Patch</h2>
+          <ul>
+            ${(
+              data.coach_summary?.prompt_patch ||
+              data.coach_result?.prompt_patch ||
+              []
+            ).map(item => `<li>${escapeHtml(item)}</li>`).join("")}
+          </ul>
         </div>
 
-        <div class="card">
-          <h2>5. Improved v2 Response</h2>
-          <p id="improvedTitle" class="muted"></p>
-          <pre id="improvedResponse"></pre>
+        <div class="section">
+          <h2>Failed cases before optimization</h2>
+          ${renderFailedCases(v1.failed_case_summaries)}
         </div>
-      </section>
 
-      <section class="card">
-        <h2>6. Improved Prompt</h2>
-        <pre id="improvedPrompt"></pre>
-      </section>
+        <div class="section">
+          <h2>Optimized prompt</h2>
+          <pre>${escapeHtml(data.prompt_v2 || data.coach_result?.improved_prompt || "")}</pre>
+        </div>
+      `;
+    }
 
-      <section class="card final">
-        <h2>Demo message</h2>
-        <p id="demoMessage"></p>
-      </section>
-    </section>
-  </main>
+    function renderFailedCases(items) {
+      if (!items || items.length === 0) {
+        return "<p class='good'>No failed cases.</p>";
+      }
 
-  <script src="/ui/app.js"></script>
+      return `
+        <table>
+          <thead>
+            <tr>
+              <th>Case</th>
+              <th>Title</th>
+              <th>Score</th>
+              <th>Failed evaluators</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(item => `
+              <tr>
+                <td>${item.case_id}</td>
+                <td>${item.title}</td>
+                <td>${item.overall_score}</td>
+                <td>${item.failed_evaluators.join(", ")}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+  </script>
 </body>
 </html>

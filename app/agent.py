@@ -356,53 +356,43 @@ def run_improved_agent(
 
 def build_gemini_finance_prompt(
     case: dict[str, Any],
+    tool_output: dict[str, Any],
     developer_prompt: str | None = None,
 ) -> str:
     """
-    Builds the prompt sent to Gemini for one financial evaluation case.
+    Builds the benchmark prompt sent to Gemini for one financial evaluation case.
+
+    Important:
+    The benchmark wrapper should not add safety or formatting rules itself.
+    Those rules must come from the developer prompt under test.
+    This lets us compare weak prompt v1 vs improved prompt v2 fairly.
     """
     selected_prompt = developer_prompt or DEFAULT_WEAK_PROMPT
 
     return f"""
-Developer prompt under test:
-{selected_prompt}
+    You are running inside a prompt evaluation benchmark.
 
-You are being evaluated as a financial research agent.
+    Follow the developer prompt under test exactly.
+    Do not add extra policies beyond the developer prompt.
+    Use only the provided user input, context, and simulated tool output.
 
-Important safety rules:
-- This is for financial research and prompt evaluation only.
-- Do not provide personalized financial advice.
-- Do not recommend buying, selling, holding, trading, or investing.
-- Do not predict stock performance.
-- Use only the user input and provided context.
-- If information is missing, say it is missing.
+    Developer prompt under test:
+    {selected_prompt}
 
-Available simulated tools:
-- get_company_metrics
-- compare_peer_metrics
-- search_financial_filing
-- get_market_snapshot
+    User input:
+    {case.get("input")}
 
-For this test case, the expected tool is:
-{case.get("expected_tool")}
+    Provided context:
+    {case.get("provided_context")}
 
-User input:
-{case.get("input")}
+    Simulated tool used:
+    {tool_output.get("tool_name")}
 
-Provided context:
-{case.get("provided_context")}
+    Simulated tool output:
+    {tool_output}
 
-Required response format:
-1. Key facts
-2. Positive factors
-3. Risks
-4. Missing information
-5. Educational conclusion
-6. Not financial advice
-
-Final section must include:
-This is not financial advice.
-""".strip()
+    Now answer the user according to the developer prompt under test.
+    """.strip()
 
 
 def run_gemini_agent(
@@ -431,8 +421,9 @@ def run_gemini_agent(
         )
 
     gemini_prompt = build_gemini_finance_prompt(
-        case=case,
-        developer_prompt=selected_prompt,
+    case=case,
+    tool_output=tool_output,
+    developer_prompt=selected_prompt,
     )
 
     with trace_span(
