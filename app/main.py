@@ -8,6 +8,7 @@ from app.dataset import get_case_by_id, load_cases
 from app.tools import run_tool
 from app.evaluators import evaluate_response
 from app.agent import run_weak_agent
+from app.runner import run_evaluation_suite
 
 
 app = FastAPI(
@@ -111,4 +112,20 @@ def run_case(case_id: str, payload: RunCaseRequest) -> dict[str, Any]:
         "case": case,
         "agent_run": agent_run,
         "evaluation": evaluation,
+    }
+
+
+@app.post("/run-suite")
+def run_suite(payload: RunCaseRequest) -> dict[str, Any]:
+    cases = load_cases()
+
+    suite_result = run_evaluation_suite(
+        cases=cases,
+        prompt=payload.prompt,
+    )
+
+    return {
+        "agent_version": "weak_simulated_v1",
+        "prompt": payload.prompt,
+        "suite_result": suite_result,
     }
