@@ -53,7 +53,7 @@
       background: white;
       padding: 18px;
       border-radius: 12px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
     }
 
     .label {
@@ -72,7 +72,7 @@
       margin-top: 24px;
       padding: 18px;
       border-radius: 12px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
     }
 
     table {
@@ -115,7 +115,7 @@
 </head>
 <body>
   <h1>FinPrompt Coach</h1>
-  <p>Compare un prompt finance faible avec une version améliorée par le coach.</p>
+  <p>Compare un prompt finance faible avec une version amelioree par le coach.</p>
 
   <textarea id="prompt">You are a helpful finance assistant. Answer clearly.</textarea>
   <br />
@@ -124,6 +124,15 @@
   <div id="results"></div>
 
   <script>
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
     async function runExperiment() {
       const button = document.getElementById("runBtn");
       const results = document.getElementById("results");
@@ -153,7 +162,7 @@
         results.innerHTML = `
           <div class="section">
             <h2>Error</h2>
-            <pre>${error.message}</pre>
+            <pre>${escapeHtml(error.message)}</pre>
           </div>
         `;
       } finally {
@@ -163,52 +172,69 @@
     }
 
     function renderResults(data) {
-      const experiment = data.experiment_result;
-      const v1 = experiment.v1_summary;
-      const v2 = experiment.v2_summary;
+      const experiment = data.experiment_result || {};
+      const v1 = experiment.v1_summary || experiment.v1_result || {};
+      const v2 = experiment.v2_summary || experiment.v2_result || {};
+      const promptPatchRaw =
+        data.coach_summary?.prompt_patch ||
+        data.coach_result?.prompt_patch ||
+        [];
+      const promptPatch = Array.isArray(promptPatchRaw) ? promptPatchRaw : [];
+      const optimizedPrompt =
+        data.prompt_v2 ||
+        data.coach_result?.improved_prompt ||
+        data.coach_summary?.improved_prompt ||
+        "No optimized prompt returned";
+      const rawImprovementValue = Number(experiment.improvement ?? 0);
+      const improvementValue = Number.isFinite(rawImprovementValue) ? rawImprovementValue : 0;
+      const improvementText = improvementValue > 0
+        ? `+${improvementValue}`
+        : `${improvementValue}`;
+      const improvementClass = improvementValue >= 0 ? "good" : "bad";
+      const promptPatchHtml = promptPatch.length === 0
+        ? "<p>No prompt patch returned.</p>"
+        : `
+          <ul>
+            ${promptPatch.map(item => `<li>${escapeHtml(item)}</li>`).join("")}
+          </ul>
+        `;
 
       document.getElementById("results").innerHTML = `
         <div class="cards">
           <div class="card">
             <div class="label">Prompt v1 score</div>
-            <div class="value bad">${experiment.prompt_v1_score}</div>
+            <div class="value bad">${escapeHtml(experiment.prompt_v1_score ?? "N/A")}</div>
           </div>
 
           <div class="card">
             <div class="label">Prompt v2 score</div>
-            <div class="value good">${experiment.prompt_v2_score}</div>
+            <div class="value good">${escapeHtml(experiment.prompt_v2_score ?? "N/A")}</div>
           </div>
 
           <div class="card">
             <div class="label">Improvement</div>
-            <div class="value good">+${experiment.improvement}</div>
+            <div class="value ${improvementClass}">${escapeHtml(improvementText)}</div>
           </div>
 
           <div class="card">
             <div class="label">v2 passed cases</div>
-            <div class="value good">${v2.passed_cases}/${v2.total_cases}</div>
+            <div class="value good">${escapeHtml(v2.passed_cases ?? 0)}/${escapeHtml(v2.total_cases ?? 0)}</div>
           </div>
         </div>
 
         <div class="section">
           <h2>Summary</h2>
           <p>
-            Gemini prompt v1 failed <strong>${v1.failed_cases}</strong> out of
-            <strong>${v1.total_cases}</strong> cases.
-            The optimized prompt v2 passed <strong>${v2.passed_cases}</strong>
-            out of <strong>${v2.total_cases}</strong> cases.
+            Gemini prompt v1 failed <strong>${escapeHtml(v1.failed_cases ?? 0)}</strong> out of
+            <strong>${escapeHtml(v1.total_cases ?? 0)}</strong> cases.
+            The optimized prompt v2 passed <strong>${escapeHtml(v2.passed_cases ?? 0)}</strong>
+            out of <strong>${escapeHtml(v2.total_cases ?? 0)}</strong> cases.
           </p>
         </div>
 
         <div class="section">
           <h2>Prompt Coach Patch</h2>
-          <ul>
-            ${(
-              data.coach_summary?.prompt_patch ||
-              data.coach_result?.prompt_patch ||
-              []
-            ).map(item => `<li>${escapeHtml(item)}</li>`).join("")}
-          </ul>
+          ${promptPatchHtml}
         </div>
 
         <div class="section">
@@ -218,13 +244,13 @@
 
         <div class="section">
           <h2>Optimized prompt</h2>
-          <pre>${escapeHtml(data.prompt_v2 || data.coach_result?.improved_prompt || "")}</pre>
+          <pre>${escapeHtml(optimizedPrompt)}</pre>
         </div>
       `;
     }
 
     function renderFailedCases(items) {
-      if (!items || items.length === 0) {
+      if (!Array.isArray(items) || items.length === 0) {
         return "<p class='good'>No failed cases.</p>";
       }
 
@@ -241,10 +267,10 @@
           <tbody>
             ${items.map(item => `
               <tr>
-                <td>${item.case_id}</td>
-                <td>${item.title}</td>
-                <td>${item.overall_score}</td>
-                <td>${item.failed_evaluators.join(", ")}</td>
+                <td>${escapeHtml(item.case_id ?? "")}</td>
+                <td>${escapeHtml(item.title ?? "")}</td>
+                <td>${escapeHtml(item.overall_score ?? "N/A")}</td>
+                <td>${escapeHtml((Array.isArray(item.failed_evaluators) ? item.failed_evaluators : []).join(", "))}</td>
               </tr>
             `).join("")}
           </tbody>
