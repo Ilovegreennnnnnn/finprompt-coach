@@ -1,11 +1,20 @@
 from typing import Any
+from time import perf_counter
+
 from app.prompt_coach import BASE_IMPROVED_PROMPT
 from app.tools import run_tool
-from app.tracing import trace_span
-from app.gemini_client import generate_gemini_text
+from app.tracing import set_span_attributes, trace_span
+from app.gemini_client import generate_gemini_response
 
 
 DEFAULT_WEAK_PROMPT = "You are a helpful finance assistant. Answer clearly."
+
+
+def _default_cost_summary() -> dict[str, Any]:
+    return {
+        "available": False,
+        "total_cost_usd": None,
+    }
 
 
 def choose_tool_naively(case: dict[str, Any]) -> str:
@@ -128,7 +137,15 @@ def run_weak_agent(
         "prompt": selected_prompt,
         "tool_used": tool_name,
         "tool_output": tool_output,
+        "tool_outputs": [tool_output],
         "response_text": response_text,
+        "latency_ms": 0.0,
+        "llm_usage": {
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": None,
+        },
+        "cost_summary": _default_cost_summary(),
     }
 
 
@@ -351,12 +368,39 @@ def run_improved_agent(
         "prompt": selected_prompt,
         "tool_used": tool_name,
         "tool_output": tool_output,
+        "tool_outputs": [tool_output],
         "response_text": response_text,
+        "latency_ms": 0.0,
+        "llm_usage": {
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": None,
+        },
+        "cost_summary": _default_cost_summary(),
     }
+
+
+def _format_tool_outputs_for_prompt(tool_outputs: list[dict[str, Any]]) -> str:
+    rendered = []
+
+    for item in tool_outputs:
+        rendered.append(
+            "\n".join(
+                [
+                    f"Tool name: {item.get('tool_name')}",
+                    f"Source: {item.get('source', 'simulated')}",
+                    f"Warnings: {item.get('warnings', [])}",
+                    f"Output: {item.get('data', item)}",
+                ]
+            )
+        )
+
+    return "\n\n".join(rendered)
+
 
 def build_gemini_finance_prompt(
     case: dict[str, Any],
-    tool_output: dict[str, Any],
+    tool_outputs: list[dict[str, Any]],
     developer_prompt: str | None = None,
 ) -> str:
     """
@@ -385,11 +429,8 @@ def build_gemini_finance_prompt(
     Provided context:
     {case.get("provided_context")}
 
-    Simulated tool used:
-    {tool_output.get("tool_name")}
-
-    Simulated tool output:
-    {tool_output}
+    Tool outputs available to the model:
+    {_format_tool_outputs_for_prompt(tool_outputs)}
 
     Now answer the user according to the developer prompt under test.
     """.strip()
@@ -405,27 +446,35 @@ def run_gemini_agent(
     """
     selected_prompt = prompt or DEFAULT_WEAK_PROMPT
     tool_name = case.get("expected_tool", "get_company_metrics")
+    frozen_tool_outputs = case.get("frozen_tool_outputs", [])
+    tool_outputs: list[dict[str, Any]]
 
-    with trace_span(
-        "tool.call",
-        {
-            "tool.name": tool_name,
-            "agent.version": "gemini",
-            "case.id": case.get("id"),
-            "tool.mode": "simulated_expected_tool",
-        },
-    ):
-        tool_output = run_tool(
-            tool_name=tool_name,
-            provided_context=case.get("provided_context", {}),
-        )
+    if frozen_tool_outputs:
+        tool_outputs = frozen_tool_outputs
+        tool_output = tool_outputs[0]
+    else:
+        with trace_span(
+            "tool.call",
+            {
+                "tool.name": tool_name,
+                "agent.version": "gemini",
+                "case.id": case.get("id"),
+                "tool.mode": "simulated_expected_tool",
+            },
+        ):
+            tool_output = run_tool(
+                tool_name=tool_name,
+                provided_context=case.get("provided_context", {}),
+            )
+        tool_outputs = [tool_output]
 
     gemini_prompt = build_gemini_finance_prompt(
-    case=case,
-    tool_output=tool_output,
-    developer_prompt=selected_prompt,
+        case=case,
+        tool_outputs=tool_outputs,
+        developer_prompt=selected_prompt,
     )
 
+    started_at = perf_counter()
     with trace_span(
         "agent.gemini.run",
         {
@@ -433,13 +482,30 @@ def run_gemini_agent(
             "case.id": case.get("id"),
             "prompt.length": len(gemini_prompt),
         },
-    ):
-        response_text = generate_gemini_text(gemini_prompt)
+    ) as span:
+        llm_result = generate_gemini_response(gemini_prompt)
+        response_text = llm_result["text"]
+        latency_ms = round((perf_counter() - started_at) * 1000, 2)
+        set_span_attributes(
+            span,
+            {
+                "agent.gemini.latency_ms": latency_ms,
+                "agent.gemini.response_id": llm_result.get("response_id"),
+                "agent.gemini.model_version": llm_result.get("model_version"),
+            },
+        )
 
     return {
         "prompt": selected_prompt,
         "gemini_prompt": gemini_prompt,
         "tool_used": tool_name,
         "tool_output": tool_output,
+        "tool_outputs": tool_outputs,
         "response_text": response_text,
+        "latency_ms": latency_ms,
+        "llm_usage": llm_result.get("usage", {}),
+        "cost_summary": llm_result.get("cost_summary", _default_cost_summary()),
+        "model": llm_result.get("model"),
+        "model_version": llm_result.get("model_version"),
+        "response_id": llm_result.get("response_id"),
     }

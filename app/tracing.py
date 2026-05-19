@@ -1,4 +1,5 @@
 import os
+from collections.abc import Mapping
 from contextlib import contextmanager
 from typing import Any, Iterator
 
@@ -44,6 +45,43 @@ def get_tracer():
     return trace.get_tracer("finprompt-coach")
 
 
+def _clean_span_value(value: Any) -> str | int | float | bool:
+    if isinstance(value, (str, int, float, bool)):
+        return value
+
+    if value is None:
+        return ""
+
+    if isinstance(value, Mapping):
+        return str(dict(value))
+
+    if isinstance(value, (list, tuple, set)):
+        return str(list(value))
+
+    return str(value)
+
+
+def set_span_attributes(span: Any, attributes: dict[str, Any] | None = None) -> None:
+    if not attributes:
+        return
+
+    for key, value in attributes.items():
+        if value is None:
+            continue
+
+        span.set_attribute(key, _clean_span_value(value))
+
+
+def current_trace_id() -> str | None:
+    span = trace.get_current_span()
+    span_context = span.get_span_context()
+
+    if not span_context or not span_context.trace_id:
+        return None
+
+    return format(span_context.trace_id, "032x")
+
+
 @contextmanager
 def trace_span(name: str, attributes: dict[str, Any] | None = None) -> Iterator[Any]:
     """
@@ -52,14 +90,6 @@ def trace_span(name: str, attributes: dict[str, Any] | None = None) -> Iterator[
     tracer = get_tracer()
 
     with tracer.start_as_current_span(name) as span:
-        if attributes:
-            for key, value in attributes.items():
-                if value is None:
-                    continue
-
-                if isinstance(value, (str, int, float, bool)):
-                    span.set_attribute(key, value)
-                else:
-                    span.set_attribute(key, str(value))
+        set_span_attributes(span, attributes)
 
         yield span

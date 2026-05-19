@@ -4,7 +4,7 @@ from opentelemetry import trace
 
 from app.agent import run_gemini_agent, run_improved_agent, run_weak_agent
 from app.evaluators import evaluate_response
-from app.tracing import trace_span
+from app.tracing import set_span_attributes, trace_span
 
 
 def run_evaluation_suite(
@@ -105,6 +105,23 @@ def run_evaluation_suite(
             1 for result in results if result["evaluation"]["passed"]
         )
         failed_cases = total_cases - passed_cases
+        latency_values = [
+            float(result.get("agent_run", {}).get("latency_ms", 0.0) or 0.0)
+            for result in results
+        ]
+        cost_values = [
+            result.get("agent_run", {}).get("cost_summary", {}).get("total_cost_usd")
+            for result in results
+            if result.get("agent_run", {}).get("cost_summary", {}).get("total_cost_usd") is not None
+        ]
+        tool_breakdown: dict[str, int] = {}
+
+        for result in results:
+            tool_name = result.get("agent_run", {}).get("tool_used")
+            if not tool_name:
+                continue
+
+            tool_breakdown[tool_name] = tool_breakdown.get(tool_name, 0) + 1
 
         if total_cases == 0:
             overall_score = 0.0
@@ -120,16 +137,24 @@ def run_evaluation_suite(
             "passed_cases": passed_cases,
             "failed_cases": failed_cases,
             "overall_score": round(overall_score, 2),
+            "average_latency_ms": round(sum(latency_values) / total_cases, 2) if total_cases else 0.0,
+            "average_cost_usd": round(sum(cost_values) / len(cost_values), 8) if cost_values else None,
+            "tool_usage_breakdown": tool_breakdown,
             "results": results,
         }
 
         current_span = trace.get_current_span()
-        current_span.set_attribute("suite.total_cases", total_cases)
-        current_span.set_attribute("suite.passed_cases", passed_cases)
-        current_span.set_attribute("suite.failed_cases", failed_cases)
-        current_span.set_attribute(
-            "suite.overall_score",
-            suite_result["overall_score"],
+        set_span_attributes(
+            current_span,
+            {
+                "suite.total_cases": total_cases,
+                "suite.passed_cases": passed_cases,
+                "suite.failed_cases": failed_cases,
+                "suite.overall_score": suite_result["overall_score"],
+                "suite.average_latency_ms": suite_result["average_latency_ms"],
+                "suite.average_cost_usd": suite_result["average_cost_usd"],
+                "suite.tool_usage_breakdown": tool_breakdown,
+            },
         )
 
         return suite_result

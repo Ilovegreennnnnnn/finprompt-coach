@@ -1,282 +1,519 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FinPrompt Coach</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 1100px;
-      margin: 40px auto;
-      padding: 0 20px;
-      background: #f7f7f8;
-      color: #111827;
-    }
-
-    h1 {
-      margin-bottom: 8px;
-    }
-
-    textarea {
-      width: 100%;
-      height: 90px;
-      padding: 12px;
-      font-size: 15px;
-      border-radius: 8px;
-      border: 1px solid #d1d5db;
-    }
-
-    button {
-      margin-top: 12px;
-      padding: 12px 18px;
-      border: none;
-      border-radius: 8px;
-      background: #111827;
-      color: white;
-      cursor: pointer;
-      font-size: 15px;
-    }
-
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-      margin-top: 24px;
-    }
-
-    .card {
-      background: white;
-      padding: 18px;
-      border-radius: 12px;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-    }
-
-    .label {
-      color: #6b7280;
-      font-size: 14px;
-      margin-bottom: 8px;
-    }
-
-    .value {
-      font-size: 28px;
-      font-weight: bold;
-    }
-
-    .section {
-      background: white;
-      margin-top: 24px;
-      padding: 18px;
-      border-radius: 12px;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-    }
-
-    th, td {
-      text-align: left;
-      padding: 10px;
-      border-bottom: 1px solid #e5e7eb;
-      font-size: 14px;
-    }
-
-    th {
-      background: #f3f4f6;
-    }
-
-    .good {
-      color: #047857;
-      font-weight: bold;
-    }
-
-    .bad {
-      color: #b91c1c;
-      font-weight: bold;
-    }
-
-    pre {
-      white-space: pre-wrap;
-      background: #111827;
-      color: #f9fafb;
-      padding: 14px;
-      border-radius: 8px;
-      max-height: 260px;
-      overflow: auto;
-    }
-  </style>
+  <link rel="stylesheet" href="/ui/styles.css" />
+  <script src="/ui/app.js" defer></script>
 </head>
 <body>
-  <h1>FinPrompt Coach</h1>
-  <p>Compare un prompt finance faible avec une version amelioree par le coach.</p>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">FinPrompt Coach</p>
+        <h1>Phoenix-First Equity Research in a Continuous Prompt Loop</h1>
+        <p class="subtitle">
+          Observe daily market runs, trace prompts, tools, tokens, latency, and cost in Phoenix,
+          then let those same runs trigger introspection, candidate prompts, and continuous lab validation.
+        </p>
+      </div>
+      <div class="hero-meta">
+        <div class="meta-chip">Phoenix Cockpit</div>
+        <div class="meta-chip">Opportunity Explorer</div>
+        <div class="meta-chip">Analyst Chat</div>
+        <div class="meta-chip">Continuous Prompt Lab</div>
+      </div>
+      <p class="disclaimer">Educational financial analysis only. Not financial advice.</p>
+    </header>
 
-  <textarea id="prompt">You are a helpful finance assistant. Answer clearly.</textarea>
-  <br />
-  <button id="runBtn" onclick="runExperiment()">Run Gemini Experiment</button>
+    <nav class="mode-switch" aria-label="Application mode">
+      <button class="mode-button active" type="button" data-mode-target="phoenixPanel">Phoenix Cockpit</button>
+      <button class="mode-button" type="button" data-mode-target="explorerPanel">Opportunity Explorer</button>
+      <button class="mode-button" type="button" data-mode-target="livePanel">Analyst Chat</button>
+      <button class="mode-button" type="button" data-mode-target="labPanel">Prompt Lab</button>
+      <button class="mode-button" type="button" data-mode-target="docsPanel">Documentation</button>
+    </nav>
 
-  <div id="results"></div>
-
-  <script>
-    function escapeHtml(value) {
-      return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
-    }
-
-    async function runExperiment() {
-      const button = document.getElementById("runBtn");
-      const results = document.getElementById("results");
-      const prompt = document.getElementById("prompt").value;
-
-      button.disabled = true;
-      button.textContent = "Running...";
-      results.innerHTML = "<p>Experiment running...</p>";
-
-      try {
-        const response = await fetch("/gemini-experiment", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ prompt })
-        });
-
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(text || "Request failed");
-        }
-
-        const data = await response.json();
-        renderResults(data);
-      } catch (error) {
-        results.innerHTML = `
-          <div class="section">
-            <h2>Error</h2>
-            <pre>${escapeHtml(error.message)}</pre>
+    <main class="main-grid">
+      <section class="panel active" id="phoenixPanel">
+        <div class="panel-header">
+          <div>
+            <p class="section-kicker">Mode 01</p>
+            <h2>Phoenix Cockpit</h2>
           </div>
-        `;
-      } finally {
-        button.disabled = false;
-        button.textContent = "Run Gemini Experiment";
-      }
-    }
-
-    function renderResults(data) {
-      const experiment = data.experiment_result || {};
-      const v1 = experiment.v1_summary || experiment.v1_result || {};
-      const v2 = experiment.v2_summary || experiment.v2_result || {};
-      const promptPatchRaw =
-        data.coach_summary?.prompt_patch ||
-        data.coach_result?.prompt_patch ||
-        [];
-      const promptPatch = Array.isArray(promptPatchRaw) ? promptPatchRaw : [];
-      const optimizedPrompt =
-        data.prompt_v2 ||
-        data.coach_result?.improved_prompt ||
-        data.coach_summary?.improved_prompt ||
-        "No optimized prompt returned";
-      const rawImprovementValue = Number(experiment.improvement ?? 0);
-      const improvementValue = Number.isFinite(rawImprovementValue) ? rawImprovementValue : 0;
-      const improvementText = improvementValue > 0
-        ? `+${improvementValue}`
-        : `${improvementValue}`;
-      const improvementClass = improvementValue >= 0 ? "good" : "bad";
-      const promptPatchHtml = promptPatch.length === 0
-        ? "<p>No prompt patch returned.</p>"
-        : `
-          <ul>
-            ${promptPatch.map(item => `<li>${escapeHtml(item)}</li>`).join("")}
-          </ul>
-        `;
-
-      document.getElementById("results").innerHTML = `
-        <div class="cards">
-          <div class="card">
-            <div class="label">Prompt v1 score</div>
-            <div class="value bad">${escapeHtml(experiment.prompt_v1_score ?? "N/A")}</div>
-          </div>
-
-          <div class="card">
-            <div class="label">Prompt v2 score</div>
-            <div class="value good">${escapeHtml(experiment.prompt_v2_score ?? "N/A")}</div>
-          </div>
-
-          <div class="card">
-            <div class="label">Improvement</div>
-            <div class="value ${improvementClass}">${escapeHtml(improvementText)}</div>
-          </div>
-
-          <div class="card">
-            <div class="label">v2 passed cases</div>
-            <div class="value good">${escapeHtml(v2.passed_cases ?? 0)}/${escapeHtml(v2.total_cases ?? 0)}</div>
-          </div>
-        </div>
-
-        <div class="section">
-          <h2>Summary</h2>
-          <p>
-            Gemini prompt v1 failed <strong>${escapeHtml(v1.failed_cases ?? 0)}</strong> out of
-            <strong>${escapeHtml(v1.total_cases ?? 0)}</strong> cases.
-            The optimized prompt v2 passed <strong>${escapeHtml(v2.passed_cases ?? 0)}</strong>
-            out of <strong>${escapeHtml(v2.total_cases ?? 0)}</strong> cases.
+          <p class="panel-note">
+            The main product surface: daily research runs, top opportunity cards, active prompt versions, and the continuous lab queue.
           </p>
         </div>
 
-        <div class="section">
-          <h2>Prompt Coach Patch</h2>
-          ${promptPatchHtml}
+        <section class="metrics-grid">
+          <article class="metric-card">
+            <p class="metric-label">Runs Today</p>
+            <h3 id="overviewRunsMetric">-</h3>
+            <p id="overviewRunsCaption" class="metric-caption">-</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Active Watchlists</p>
+            <h3 id="overviewWatchlistsMetric">-</h3>
+            <p id="overviewWatchlistsCaption" class="metric-caption">-</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Traced Cost</p>
+            <h3 id="overviewCostMetric">Unavailable</h3>
+            <p id="overviewCostCaption" class="metric-caption">-</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Average Latency</p>
+            <h3 id="overviewLatencyMetric">-</h3>
+            <p id="overviewLatencyCaption" class="metric-caption">-</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Current Prompt</p>
+            <h3 id="overviewPromptMetric">-</h3>
+            <p id="overviewPromptCaption" class="metric-caption">-</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Promotion Flow</p>
+            <h3 id="overviewPromotionMetric">-</h3>
+            <p id="overviewPromotionCaption" class="metric-caption">-</p>
+          </article>
+        </section>
+
+        <section class="content-grid">
+          <article class="card answer-card">
+            <div class="card-header">
+              <h3>Top Opportunities</h3>
+              <span class="badge">Phoenix-ranked ideas</span>
+            </div>
+            <div id="phoenixTopIdeas" class="trace-grid"></div>
+          </article>
+
+          <article class="card sidebar-card">
+            <div class="card-header">
+              <h3>Prompt Registry</h3>
+              <span class="badge badge-muted">Current / candidate / previous</span>
+            </div>
+            <div id="phoenixPromptState" class="stack-list"></div>
+            <div class="composer-actions top-gap">
+              <button id="rollbackPromptButton" type="button" class="secondary-button">Rollback Current Prompt</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h3>How To Use FinPrompt Coach</h3>
+            <span class="badge badge-muted">Quick start</span>
+          </div>
+          <div class="docs-grid compact-docs">
+            <article class="stack-item">
+              <p><strong>1. Start in Phoenix Cockpit</strong></p>
+              <p>Watch the daily runs, prompt versions, anomalies, queue state, and top ideas. This is the operational overview.</p>
+            </article>
+            <article class="stack-item">
+              <p><strong>2. Explore a market universe</strong></p>
+              <p>Open Opportunity Explorer and run a seeded watchlist such as <strong>France - SBF 120 Core</strong>.</p>
+            </article>
+            <article class="stack-item">
+              <p><strong>3. Investigate a single question</strong></p>
+              <p>Use Analyst Chat for a one-off comparison, valuation review, dividend check, or market move explanation.</p>
+            </article>
+            <article class="stack-item">
+              <p><strong>4. Validate manually in Prompt Lab</strong></p>
+              <p>Run explicit benchmark rounds when you want to inspect prompt evolution outside the automatic Phoenix loop.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <article class="card">
+            <div class="card-header">
+              <h3>Recent Market Runs</h3>
+              <span class="badge">Research loop</span>
+            </div>
+            <div id="phoenixRecentRuns" class="round-history"></div>
+          </article>
+
+          <article class="card">
+            <div class="card-header">
+              <h3>Continuous Lab Queue</h3>
+              <span class="badge badge-muted">Triggered by introspection</span>
+            </div>
+            <div id="phoenixLabQueue" class="stack-list"></div>
+          </article>
+        </section>
+      </section>
+
+      <section class="panel" id="explorerPanel">
+        <div class="panel-header">
+          <div>
+            <p class="section-kicker">Mode 02</p>
+            <h2>Opportunity Explorer</h2>
+          </div>
+          <p class="panel-note">
+            Launch watchlist research runs, rank opportunity cards, and inspect the introspection that feeds the continuous prompt loop.
+          </p>
         </div>
 
-        <div class="section">
-          <h2>Failed cases before optimization</h2>
-          ${renderFailedCases(v1.failed_case_summaries)}
+        <div class="composer card">
+          <div class="lab-controls">
+            <label class="field">
+              <span>Active watchlist</span>
+              <select id="watchlistSelect"></select>
+            </label>
+            <div class="field field-actions">
+              <span>Run research</span>
+              <button id="runExplorerButton" type="button" class="primary-button">Run Watchlist Scan</button>
+            </div>
+          </div>
+          <p class="status">
+            Tip: use <strong>France - SBF 120 Core</strong> for a ready-to-run French exploration universe, then customize the list if you want a stricter or broader coverage.
+          </p>
+          <p id="explorerLoading" class="status hidden">Running a Phoenix-traced market research loop...</p>
+
+          <div class="divider"></div>
+
+          <div class="lab-controls">
+            <label class="field">
+              <span>New watchlist name</span>
+              <input id="watchlistName" type="text" placeholder="Cloud compounders" />
+            </label>
+            <label class="field">
+              <span>Tickers</span>
+              <input id="watchlistTickers" type="text" placeholder="MSFT, AMZN, GOOGL" />
+            </label>
+          </div>
+          <label class="field field-wide">
+            <span>Description</span>
+            <textarea id="watchlistDescription" class="compact-textarea" placeholder="High-quality software and cloud names to scan every day."></textarea>
+          </label>
+          <label class="checkbox-row">
+            <input id="watchlistScheduleEnabled" type="checkbox" checked />
+            <span>Enable daily scheduled run for this watchlist</span>
+          </label>
+          <div class="composer-actions">
+            <button id="createWatchlistButton" type="button" class="secondary-button">Create Watchlist</button>
+          </div>
         </div>
 
-        <div class="section">
-          <h2>Optimized prompt</h2>
-          <pre>${escapeHtml(optimizedPrompt)}</pre>
+        <div id="explorerResults" class="results-stack hidden">
+          <section class="metrics-grid">
+            <article class="metric-card">
+              <p class="metric-label">Watchlist</p>
+              <h3 id="explorerWatchlistMetric">-</h3>
+              <p id="explorerPromptMetric" class="metric-caption">-</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Trace</p>
+              <h3 id="explorerTraceMetric">-</h3>
+              <p id="explorerLatencyMetric" class="metric-caption">-</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Top Score</p>
+              <h3 id="explorerTopScoreMetric">-</h3>
+              <p class="metric-caption">Best idea in current run</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Lab Queue</p>
+              <h3 id="explorerQueueMetric">-</h3>
+              <p id="explorerQueueCaption" class="metric-caption">-</p>
+            </article>
+          </section>
+
+          <section class="content-grid">
+            <article class="card answer-card">
+              <div class="card-header">
+                <h3>Idea Cards</h3>
+                <span class="badge">Opportunity ranking</span>
+              </div>
+              <div id="explorerIdeaCards" class="trace-grid"></div>
+            </article>
+
+            <article class="card sidebar-card">
+              <div class="card-header">
+                <h3>Run Introspection</h3>
+                <span class="badge badge-muted">Auto-generated after every run</span>
+              </div>
+              <div id="explorerIntrospection" class="stack-list"></div>
+              <div class="composer-actions top-gap">
+                <button id="rerunIntrospectionButton" type="button" class="secondary-button" data-run-id="">Rerun Introspection</button>
+              </div>
+            </article>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h3>Explorer Tool Trace</h3>
+              <span class="badge">Phoenix spans</span>
+            </div>
+            <div id="explorerToolTrace" class="round-history"></div>
+          </section>
         </div>
-      `;
-    }
+      </section>
 
-    function renderFailedCases(items) {
-      if (!Array.isArray(items) || items.length === 0) {
-        return "<p class='good'>No failed cases.</p>";
-      }
+      <section class="panel" id="livePanel">
+        <div class="panel-header">
+          <div>
+            <p class="section-kicker">Mode 03</p>
+            <h2>Analyst Chat</h2>
+          </div>
+          <p class="panel-note">
+            Run a one-off analyst workflow, inspect the tool trace, and let the live result feed the same Phoenix learning system.
+          </p>
+        </div>
 
-      return `
-        <table>
-          <thead>
-            <tr>
-              <th>Case</th>
-              <th>Title</th>
-              <th>Score</th>
-              <th>Failed evaluators</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items.map(item => `
-              <tr>
-                <td>${escapeHtml(item.case_id ?? "")}</td>
-                <td>${escapeHtml(item.title ?? "")}</td>
-                <td>${escapeHtml(item.overall_score ?? "N/A")}</td>
-                <td>${escapeHtml((Array.isArray(item.failed_evaluators) ? item.failed_evaluators : []).join(", "))}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      `;
-    }
-  </script>
+        <div class="composer card">
+          <label class="field">
+            <span>Tickers (optional)</span>
+            <input id="liveTickers" type="text" placeholder="AAPL, MSFT, NVDA" />
+          </label>
+          <label class="field">
+            <span>Conversation ID (optional)</span>
+            <input id="conversationId" type="text" placeholder="session-alpha-001" />
+          </label>
+          <label class="field field-wide">
+            <span>Analyst request</span>
+            <textarea id="liveMessage">Compare MSFT and AAPL on valuation, margins, and cash flow quality.</textarea>
+          </label>
+          <div class="composer-actions">
+            <button id="runLiveButton" type="button" class="primary-button">Run Live Analysis</button>
+            <p id="liveLoading" class="status hidden">Running live analysis and tracing the workflow...</p>
+          </div>
+        </div>
+
+        <div id="liveResults" class="results-stack hidden">
+          <section class="metrics-grid">
+            <article class="metric-card">
+              <p class="metric-label">Tickers</p>
+              <h3 id="liveTickersMetric">-</h3>
+              <p id="liveModeMetric" class="metric-caption">-</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Model Cost</p>
+              <h3 id="liveCostMetric">Unavailable</h3>
+              <p id="liveTokenMetric" class="metric-caption">-</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Trace</p>
+              <h3 id="liveTraceMetric">-</h3>
+              <p id="liveLatencyMetric" class="metric-caption">-</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Prompt Version</p>
+              <h3 id="livePromptMetric">-</h3>
+              <p id="livePromptCaption" class="metric-caption">-</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Promotion</p>
+              <h3 id="livePromotionMetric">Pending</h3>
+              <p id="livePromotionCaption" class="metric-caption">Live trace to benchmark</p>
+            </article>
+          </section>
+
+          <section class="content-grid">
+            <article class="card answer-card">
+              <div class="card-header">
+                <h3>Analyst Answer</h3>
+                <span class="badge">Gemini + live tools</span>
+              </div>
+              <pre id="liveAnswer" class="response-block"></pre>
+            </article>
+
+            <article class="card sidebar-card">
+              <div class="card-header">
+                <h3>Warnings</h3>
+                <span class="badge badge-muted">Guardrails</span>
+              </div>
+              <div id="liveWarnings" class="stack-list empty-state">No warnings.</div>
+            </article>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h3>Tool Trace</h3>
+              <span class="badge">Phoenix-ready</span>
+            </div>
+            <div id="toolTrace" class="trace-grid"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="panel" id="labPanel">
+        <div class="panel-header">
+          <div>
+            <p class="section-kicker">Mode 04</p>
+            <h2>Prompt Lab</h2>
+          </div>
+          <p class="panel-note">
+            Run a manual benchmark session, inspect the round history, and compare the explicit lab results with the automatic Phoenix loop.
+          </p>
+        </div>
+
+        <div class="composer card">
+          <div class="lab-controls">
+            <label class="field">
+              <span>Benchmark pack</span>
+              <select id="benchmarkSelect"></select>
+            </label>
+            <label class="field">
+              <span>Max rounds</span>
+              <select id="maxRounds">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3" selected>3</option>
+              </select>
+            </label>
+          </div>
+          <label class="field field-wide">
+            <span>Developer prompt under test</span>
+            <textarea id="labPrompt" data-autofilled="true">You are a helpful finance assistant. Answer clearly.</textarea>
+          </label>
+          <div class="composer-actions">
+            <button id="runLabButton" type="button" class="primary-button">Run Prompt Lab</button>
+            <p id="labLoading" class="status hidden">Running benchmark rounds and scoring the prompt...</p>
+          </div>
+        </div>
+
+        <div id="labResults" class="results-stack hidden">
+          <section class="metrics-grid">
+            <article class="metric-card">
+              <p class="metric-label">Baseline Score</p>
+              <h3 id="baselineScoreMetric">-</h3>
+              <p id="baselineCostMetric" class="metric-caption">-</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Best Score</p>
+              <h3 id="bestScoreMetric">-</h3>
+              <p id="bestRoundMetric" class="metric-caption">-</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Improvement</p>
+              <h3 id="scoreDeltaMetric">-</h3>
+              <p id="costDeltaMetric" class="metric-caption">-</p>
+            </article>
+            <article class="metric-card">
+              <p class="metric-label">Rounds</p>
+              <h3 id="roundCountMetric">-</h3>
+              <p id="stopReasonMetric" class="metric-caption">-</p>
+            </article>
+          </section>
+
+          <section class="content-grid">
+            <article class="card answer-card">
+              <div class="card-header">
+                <h3>Best Prompt</h3>
+                <span class="badge">Selected prompt</span>
+              </div>
+              <pre id="bestPrompt" class="response-block"></pre>
+            </article>
+
+            <article class="card sidebar-card">
+              <div class="card-header">
+                <h3>Live Trace Insights</h3>
+                <span class="badge badge-muted">Auto-promoted cases</span>
+              </div>
+              <div id="liveInsights" class="stack-list empty-state">No promoted live traces yet.</div>
+            </article>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h3>Round-by-Round History</h3>
+              <span class="badge">Prompt evolution</span>
+            </div>
+            <div id="roundHistory" class="round-history"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="panel" id="docsPanel">
+        <div class="panel-header">
+          <div>
+            <p class="section-kicker">Mode 05</p>
+            <h2>Documentation</h2>
+          </div>
+          <p class="panel-note">
+            A practical guide to understand the interface, the Phoenix loop, and the best way to use exploration, live analysis, and prompt validation together.
+          </p>
+        </div>
+
+        <section class="card">
+          <div class="card-header">
+            <h3>What Each Screen Does</h3>
+            <span class="badge">Product map</span>
+          </div>
+          <div class="docs-grid">
+            <article class="stack-item">
+              <p><strong>Phoenix Cockpit</strong></p>
+              <p>The home base. It shows runs today, active watchlists, prompt versions, anomalies, lab queue activity, and the strongest opportunity cards.</p>
+            </article>
+            <article class="stack-item">
+              <p><strong>Opportunity Explorer</strong></p>
+              <p>The market-scanning view. You choose a watchlist, run a research cycle, inspect the idea cards, then read the auto-introspection triggered by that run.</p>
+            </article>
+            <article class="stack-item">
+              <p><strong>Analyst Chat</strong></p>
+              <p>The single-request mode. Use it when you already know the ticker or question you want to study and you want the tool trace immediately.</p>
+            </article>
+            <article class="stack-item">
+              <p><strong>Prompt Lab</strong></p>
+              <p>The manual benchmark workspace. It is useful when you want to compare prompt rounds explicitly rather than relying only on the automatic continuous loop.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h3>Recommended Workflow</h3>
+            <span class="badge badge-muted">Best practice</span>
+          </div>
+          <div class="docs-grid">
+            <article class="stack-item">
+              <p><strong>For French market exploration</strong></p>
+              <p>Go to Opportunity Explorer, select <strong>France - SBF 120 Core</strong>, then click <strong>Run Watchlist Scan</strong>. This is an editable seed universe built around liquid SBF 120 names on Euronext Paris.</p>
+            </article>
+            <article class="stack-item">
+              <p><strong>For a focused stock question</strong></p>
+              <p>Go to Analyst Chat and ask something like “Compare AIR.PA and SU.PA on valuation, margins, and balance-sheet risk.”</p>
+            </article>
+            <article class="stack-item">
+              <p><strong>For prompt governance</strong></p>
+              <p>Watch the candidate prompt in Phoenix Cockpit. If you want a manual sanity check, copy the active prompt into Prompt Lab and run the benchmark.</p>
+            </article>
+            <article class="stack-item">
+              <p><strong>For anomalies</strong></p>
+              <p>If a metric looks implausible, check the warning flags first. FinPrompt Coach is designed to expose suspicious values instead of hiding them.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h3>How To Read The Numbers</h3>
+            <span class="badge">Metric guide</span>
+          </div>
+          <div class="docs-grid">
+            <article class="stack-item">
+              <p><strong>Opportunity Score</strong></p>
+              <p>A research-priority score, not an investment recommendation. It combines valuation, profitability, cash flow quality, balance sheet, market context, and data confidence.</p>
+            </article>
+            <article class="stack-item">
+              <p><strong>Data Confidence</strong></p>
+              <p>The quality of the underlying data after normalization and anomaly checks. Low confidence means the tool output should be treated carefully.</p>
+            </article>
+            <article class="stack-item">
+              <p><strong>Reasoning Confidence</strong></p>
+              <p>A confidence proxy for the generated opportunity thesis. It drops when the score is weak, risks are numerous, or the data is noisy.</p>
+            </article>
+            <article class="stack-item">
+              <p><strong>Promotion / Lab Queue</strong></p>
+              <p>When a run is interesting, ambiguous, or anomalous, it can be promoted into the continuous lab so the prompt system learns from real usage.</p>
+            </article>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
 </body>
 </html>
